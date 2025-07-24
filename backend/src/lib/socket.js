@@ -32,4 +32,4 @@ function getReceiverSocketId(userId) {
   return userSocketMap[userId];
 }
 
-export { initSocket, getReceiverSocketId };
+export { initSocket, getReceiverSocketId,io };
