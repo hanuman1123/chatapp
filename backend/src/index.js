@@ -19,6 +19,8 @@ app.use(cookieParser());
 
 // CORS configuration for local dev and local network access
 const allowedOrigins = [
+  "http://localhost:5173",
+  "http://192.168.2.62:5173",
   "https://chatapp-jagadeesh.vercel.app"
 ];
 
