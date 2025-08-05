@@ -22,6 +22,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://192.168.2.62:5173",
   "https://chatapp-jagadeesh.vercel.app"
+  
 ];
 
 app.use(
