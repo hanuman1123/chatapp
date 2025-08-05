@@ -37,6 +37,13 @@ app.use(
   })
 );
 
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    "success": true,
+    "message": "Chat API is health!"
+  })
+})
+
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
