@@ -4,11 +4,13 @@ import toast from "react-hot-toast";
 import { io } from "socket.io-client";
 
 // Dynamically resolve server URL
-const hostname = window.location.hostname;
-const BASE_URL =
-  hostname === "localhost"
-    ? "http://localhost:5001"
-    : `http://${hostname}:5001`;
+// const hostname = window.location.hostname;
+// const BASE_URL =
+//   hostname === "localhost"
+//     ? "http://localhost:5001"
+//     : `http://${hostname}:5001`;
+
+const BASE_URL = import.meta.env.MODE === "development" ? "http://localhost:5001" : "/";
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
