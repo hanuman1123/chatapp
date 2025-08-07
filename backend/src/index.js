@@ -24,25 +24,25 @@ const allowedOrigins = [
   "https://chatapp-six-roan.vercel.app", // ✅ include your current frontend
 ];
 
-// app.use(
-//   cors({
-//     origin: function (origin, callback) {
-//       if (!origin || allowedOrigins.includes(origin)) {
-//         callback(null, true);
-//       } else {
-//         callback(new Error("Not allowed by CORS: " + origin));
-//       }
-//     },
-//     credentials: true, // ✅ send cookies cross-site
-//   })
-// );
-
 app.use(
   cors({
-    origin: allowedOrigins,
-    credentials: true,
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS: " + origin));
+      }
+    },
+    credentials: true, // ✅ send cookies cross-site
   })
 );
+
+// app.use(
+//   cors({
+//     origin: allowedOrigins,
+//     credentials: true,
+//   })
+// );
 
 // Health check
 app.get("/health", (req, res) => {
