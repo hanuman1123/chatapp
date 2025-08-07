@@ -1,135 +1,73 @@
-import { create } from "zustand";
-import { axiosInstance } from "../lib/axios.js";
-import toast from "react-hot-toast";
-import { io } from "socket.io-client";
+import express from "express";
+import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
+import cors from "cors";
+// import path from "path";
 
-const BASE_URL = "https://chatapp-suvi.onrender.com";
+import { connectDB } from "./lib/db.js";
+import authRoutes from "./routes/auth.routes.js";
+import messageRoutes from "./routes/message.routes.js";
+import { app, server } from "./lib/socket.js";
 
-export const useAuthStore = create((set, get) => ({
-  authUser: null,
-  isSigningUp: false,
-  isLoggingIn: false,
-  isUpdatingProfile: false,
-  isCheckingAuth: true,
-  onlineUsers: [],
-  socket: null,
+dotenv.config();
 
-  checkAuth: async () => {
-    try {
-      const res = await axiosInstance.get("/auth/check");
-      set({ authUser: res.data });
-      get().connectSocket(); // Only connect if authenticated
-    } catch (error) {
-      console.error("❌ checkAuth error:", error);
-      set({ authUser: null });
-    } finally {
-      set({ isCheckingAuth: false });
-    }
-  },
+const PORT = process.env.PORT;
+// const __dirname = path.resolve();
 
-  signup: async (data) => {
-    set({ isSigningUp: true });
-    try {
-      const res = await axiosInstance.post("/auth/signup", data);
-      set({ authUser: res.data });
-      toast.success("Account created");
-      get().connectSocket();
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Signup failed");
-    } finally {
-      set({ isSigningUp: false });
-    }
-  },
+// Middleware
+app.use(express.json());
+app.use(cookieParser());
 
-  login: async (data) => {
-    set({ isLoggingIn: true });
-    try {
-      const res = await axiosInstance.post("/auth/login", data);
-      set({ authUser: res.data });
-      toast.success("Logged in");
-      get().connectSocket();
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Login failed");
-    } finally {
-      set({ isLoggingIn: false });
-    }
-  },
+// ✅ CORS configuration (allow specific origins only)
+const allowedOrigins = [
+  "https://chatapp-jagadeesh.vercel.app",
+  "https://chatapp-six-roan.vercel.app", // ✅ include your current frontend
+];
 
-  logout: async () => {
-    try {
-      await axiosInstance.post("/auth/logout");
-      get().disconnectSocket();
-      set({ authUser: null });
-      toast.success("Logged out");
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Logout failed");
-    }
-  },
-
-  updateProfile: async (data) => {
-    set({ isUpdatingProfile: true });
-    try {
-      const res = await axiosInstance.put("/auth/update-profile", data);
-      set({ authUser: res.data });
-      toast.success("Profile updated");
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Update failed");
-    } finally {
-      set({ isUpdatingProfile: false });
-    }
-  },
-
-  connectSocket: () => {
-    const { authUser, socket } = get();
-    if (!authUser) return;
-
-    if (socket && socket.connected) return; // Already connected
-
-    const newSocket = io(BASE_URL, {
-      query: { userId: authUser._id },
-      withCredentials: true,
-      transports: ["websocket"],
-    });
-
-    set({ socket: newSocket });
-
-    newSocket.on("connect", () => {
-      console.log("✅ Socket connected:", newSocket.id);
-      newSocket.emit("refreshOnlineUsers");
-    });
-
-    newSocket.on("getOnlineUsers", (userIds) => {
-      set({ onlineUsers: userIds });
-    });
-
-    const handleBeforeUnload = () => newSocket.disconnect();
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        newSocket.disconnect();
-      } else if (document.visibilityState === "visible") {
-        if (newSocket.disconnected) {
-          get().connectSocket();
-        } else {
-          newSocket.emit("refreshOnlineUsers");
-        }
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS: " + origin));
       }
-    };
+    },
+    credentials: true, // ✅ send cookies cross-site
+  })
+);
 
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    window.addEventListener("visibilitychange", handleVisibilityChange);
+// app.use(
+//   cors({
+//     origin: allowedOrigins,
+//     credentials: true,
+//   })
+// );
 
-    newSocket.on("disconnect", () => {
-      console.log("❌ Socket disconnected");
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      window.removeEventListener("visibilitychange", handleVisibilityChange);
-    });
-  },
+// Health check
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Chat API is healthy!",
+  });
+});
 
-  disconnectSocket: () => {
-    const socket = get().socket;
-    if (socket?.connected) {
-      socket.disconnect();
-      set({ socket: null });
-    }
-  },
-}));
+// API routes
+app.use("/api/auth", authRoutes);
+app.use("/api/messages", messageRoutes);
+
+// ✅ Serve frontend in production
+// if (process.env.NODE_ENV === "production") {
+//   console.log("Current NODE_ENV:", process.env.NODE_ENV);
+//   app.use(express.static(path.join(__dirname, "../frontend/dist")));
+
+//   app.get("*", (req, res) => {
+//     res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
+//   });
+// }
+
+// Start server
+server.listen(PORT, () => {
+  console.log("Server is running on PORT: " + PORT);
+  connectDB();
+});
