@@ -1,9 +1,13 @@
 import axios from "axios";
+const baseURL =
+  import.meta.env.MODE === "development"
+    ? "http://localhost:5000/api" // your local backend
+    : "https://chatapp-suvi.onrender.com/api"; // deployed backend
 
 export const axiosInstance = axios.create({
-    baseURL: "https://chatapp-jagadeesh.vercel.app/api",
-    withCredentials: true,
-})
+  baseURL,
+  withCredentials: true,
+});
 
 // const isLocalhost = window.location.hostname === "localhost";
 

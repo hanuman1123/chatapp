@@ -14,46 +14,44 @@ dotenv.config();
 const PORT = process.env.PORT;
 const __dirname = path.resolve();
 
+// Middleware
 app.use(express.json());
 app.use(cookieParser());
 
-// CORS configuration for local dev and local network access
+// ✅ CORS configuration (allow specific origins only)
 const allowedOrigins = [
-  "http://localhost:5173",
-  "http://192.168.2.62:5173",
-  "https://chatapp-jagadeesh.vercel.app"
-  
+  "https://chatapp-jagadeesh.vercel.app",
+  "https://chatapp-six-roan.vercel.app", // ✅ include your current frontend
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        callback(new Error("Not allowed by CORS: " + origin));
       }
     },
-    credentials: true,
+    credentials: true, // ✅ send cookies cross-site
   })
 );
 
+// Health check
 app.get("/health", (req, res) => {
   res.status(200).json({
-    "success": true,
-    "message": "Chat API is health!"
-  })
-})
+    success: true,
+    message: "Chat API is healthy!",
+  });
+});
 
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 
-// Serve frontend in production
+// ✅ Serve frontend in production
 if (process.env.NODE_ENV === "production") {
   console.log("Current NODE_ENV:", process.env.NODE_ENV);
-
   app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
   app.get("*", (req, res) => {
