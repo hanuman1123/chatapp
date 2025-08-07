@@ -3,12 +3,14 @@ import { axiosInstance } from "../lib/axios.js";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client";
 
-const BASE_URL = "https://chatapp-suvi.onrender.com";
+// Dynamically resolve server URL
+// const hostname = window.location.hostname;
+// const BASE_URL =
+//   hostname === "localhost"
+//     ? "http://localhost:5001"
+//     : `http://${hostname}:5001`;
 
-// Utility: Simplified error toasts
-const toastError = (error, fallback = "Something went wrong") => {
-  toast.error(error?.response?.data?.message || fallback);
-};
+const BASE_URL = import.meta.env.MODE === "development" ? "https://chatapp-suvi.onrender.com" : "/";
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
@@ -25,7 +27,7 @@ export const useAuthStore = create((set, get) => ({
       set({ authUser: res.data });
       get().connectSocket();
     } catch (error) {
-      console.error("❌ checkAuth error:", error);
+      console.log("Error in checkAuth:", error);
       set({ authUser: null });
     } finally {
       set({ isCheckingAuth: false });
@@ -40,7 +42,7 @@ export const useAuthStore = create((set, get) => ({
       toast.success("Account created successfully");
       get().connectSocket();
     } catch (error) {
-      toastError(error, "Signup failed");
+      toast.error(error.response?.data?.message || "Signup failed");
     } finally {
       set({ isSigningUp: false });
     }
@@ -54,7 +56,7 @@ export const useAuthStore = create((set, get) => ({
       toast.success("Logged in successfully");
       get().connectSocket();
     } catch (error) {
-      toastError(error, "Login failed");
+      toast.error(error.response?.data?.message || "Login failed");
     } finally {
       set({ isLoggingIn: false });
     }
@@ -67,7 +69,7 @@ export const useAuthStore = create((set, get) => ({
       toast.success("Logged out successfully");
       get().disconnectSocket();
     } catch (error) {
-      toastError(error, "Logout failed");
+      toast.error(error.response?.data?.message || "Logout failed");
     }
   },
 
@@ -78,7 +80,7 @@ export const useAuthStore = create((set, get) => ({
       set({ authUser: res.data });
       toast.success("Profile updated successfully");
     } catch (error) {
-      toastError(error, "Update failed");
+      toast.error(error.response?.data?.message || "Update failed");
     } finally {
       set({ isUpdatingProfile: false });
     }
@@ -88,62 +90,52 @@ export const useAuthStore = create((set, get) => ({
     const { authUser, socket } = get();
     if (!authUser) return;
 
-    if (socket && socket.connected) return; // Already connected
+    let newSocket = socket;
 
-    const newSocket = io(BASE_URL, {
-      query: { userId: authUser._id },
-      withCredentials: true,
-      transports: ["websocket"],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
-    });
+    if (!socket || socket.disconnected) {
+      newSocket = io(BASE_URL, {
+        query: { userId: authUser._id },
+        withCredentials: true,
+      });
 
-    set({ socket: newSocket });
+      set({ socket: newSocket });
 
-    newSocket.on("connect", () => {
-      console.log("✅ Socket connected:", newSocket.id);
-      newSocket.emit("refreshOnlineUsers");
-    });
+      newSocket.on("connect", () => {
+        console.log("🔌 Connected:", newSocket.id);
+        newSocket.emit("refreshOnlineUsers"); // Ask backend to send fresh list
+      });
 
-    newSocket.on("getOnlineUsers", (userIds) => {
-      set({ onlineUsers: userIds });
-    });
+      newSocket.on("getOnlineUsers", (userIds) => {
+        set({ onlineUsers: userIds });
+      });
 
-    const handleBeforeUnload = () => newSocket.disconnect();
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
+      const handleBeforeUnload = () => {
         newSocket.disconnect();
-      } else if (document.visibilityState === "visible") {
-        if (newSocket.disconnected) {
-          get().connectSocket();
-        } else {
-          newSocket.emit("refreshOnlineUsers");
+      };
+
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === "hidden") {
+          newSocket.disconnect();
+        } else if (document.visibilityState === "visible") {
+          if (newSocket.disconnected) {
+            get().connectSocket();
+          } else {
+            newSocket.emit("refreshOnlineUsers");
+          }
         }
-      }
-    };
+      };
 
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    window.addEventListener("visibilitychange", handleVisibilityChange);
+      window.addEventListener("beforeunload", handleBeforeUnload);
+      window.addEventListener("visibilitychange", handleVisibilityChange);
 
-    // Optional: keep connection alive on platforms like Render
-    const pingInterval = setInterval(() => {
-      if (newSocket.connected) newSocket.emit("ping");
-    }, 25000);
-
-    newSocket.on("disconnect", () => {
-      console.log("❌ Socket disconnected:", newSocket.id);
-
-      newSocket.off("connect");
-      newSocket.off("getOnlineUsers");
-      newSocket.off("disconnect");
-
-      clearInterval(pingInterval);
-
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      window.removeEventListener("visibilitychange", handleVisibilityChange);
-    });
+      newSocket.on("disconnect", () => {
+        console.log("❌ Socket disconnected:", newSocket.id);
+        window.removeEventListener("beforeunload", handleBeforeUnload);
+        window.removeEventListener("visibilitychange", handleVisibilityChange);
+      });
+    } else if (!newSocket.connected) {
+      newSocket.connect();
+    }
   },
 
   disconnectSocket: () => {
